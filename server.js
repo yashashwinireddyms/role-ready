@@ -1,9 +1,9 @@
-const express = require("express"), Database = require("better-sqlite3"), bcrypt = require("bcryptjs");
+const express = require("express"), bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken"), path = require("path"), D = require("docx");
 const crypto = require("crypto");
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET || SECRET.length < 16) { console.error("Set JWT_SECRET (16+ random characters)"); process.exit(1); }
-const db = new Database(process.env.DB_FILE || "data.db");
+const db = new DatabaseSync(process.env.DB_FILE || "data.db");
 db.exec(`create table if not exists users(id integer primary key, email text unique, hash text);
 create table if not exists store(user_id integer, k text, v text, primary key(user_id, k));
 create table if not exists events(id integer primary key, ts integer, m text, p text, st integer, uid integer, ip text, ms integer);
