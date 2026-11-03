@@ -1,6 +1,7 @@
 const express = require("express"), bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken"), path = require("path"), D = require("docx");
 const crypto = require("crypto");
+const { DatabaseSync } = require("node:sqlite"); // built into Node 22+, nothing to compile
 const SECRET = process.env.JWT_SECRET;
 if (!SECRET || SECRET.length < 16) { console.error("Set JWT_SECRET (16+ random characters)"); process.exit(1); }
 const db = new DatabaseSync(process.env.DB_FILE || "data.db");
