@@ -1,0 +1,46 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Admin console</title>
+<style>
+:root{color-scheme:light dark;--bg:#eef2f4;--card:#fff;--ink:#16252b;--mut:#5b6b72;--ac:#0b6e6e;--line:#cdd7db;--bad:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#10181b;--card:#182226;--ink:#e6eef0;--mut:#93a5ab;--ac:#4fc3b8;--line:#2b3b41;--bad:#f87171}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}h1{margin:0;font:700 20px Georgia,serif}
+main{max-width:1200px;margin:auto;padding:18px}.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 8px}.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.n{font:700 26px Georgia,serif}.l{color:var(--mut);font-size:12px}
+input,button{font:inherit;padding:7px 10px;border-radius:6px;border:1px solid var(--line);background:transparent;color:var(--ink)}button{cursor:pointer;border-color:var(--ac);color:var(--ac)}button.p{background:var(--ac);color:var(--card)}
+input:focus-visible,button:focus-visible{outline:2px solid var(--ac)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line)}th{color:var(--mut)}.w{overflow-x:auto;max-height:380px}
+.bars{display:flex;gap:6px;align-items:flex-end;height:120px}.bars div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;font-size:10px;color:var(--mut)}.bars i{display:block;width:100%;background:var(--ac);border-radius:3px 3px 0 0;min-height:1px}
+.warn{background:#fef3c7;color:#78350f;border-radius:6px;padding:8px 10px;margin-bottom:14px}.bad{color:var(--bad)}
+</style></head><body>
+<div id="login" style="max-width:340px;margin:12vh auto;padding:0 16px"><h1>Admin console</h1><p class="l">Sign in with the admin account set on the server.</p>
+<p><label>Admin user<br><input id="u" autocomplete="username" style="width:100%"></label></p><p><label>Password<br><input id="pw" type="password" autocomplete="current-password" style="width:100%"></label></p>
+<button class="p" id="go">Sign in</button> <span id="err" class="bad"></span></div>
+<div id="app" hidden><header><h1>Admin console</h1><div><span class="l" id="upd"></span> <button id="rf">Refresh</button> <button id="so">Sign out</button></div></header>
+<main><div id="eph" class="warn" hidden>This server is on a free plan with a temporary disk. Accounts and this activity log are erased whenever the server restarts, redeploys or goes idle. Use a persistent database before real users depend on it.</div>
+<div class="g" id="cards"></div><div class="card" style="margin-top:14px"><h2>Last 14 days: site visits (bars) and all API calls (hover)</h2><div class="bars" id="bars"></div></div>
+<div class="card"><h2>Top requests, last 7 days</h2><div class="w"><table id="top"></table></div></div>
+<div class="card"><h2>Users</h2><div class="w"><table id="users"></table></div></div>
+<div class="card"><h2>Recent activity (latest 100)</h2><div class="w"><table id="ev"></table></div></div>
+<p class="l" id="srv"></p></main></div>
+<script>
+const $=i=>document.getElementById(i),esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let tk=sessionStorage.getItem("at")||"",tm;
+async function api(p,o={}){const r=await fetch(p,{...o,headers:{"Content-Type":"application/json",Authorization:"Bearer "+tk}}),j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&tk)out();throw new Error(j.error||"Request failed")}return j}
+const T=t=>t?new Date(t).toLocaleString():"never";
+function out(){tk="";sessionStorage.removeItem("at");clearInterval(tm);$("app").hidden=true;$("login").hidden=false}
+$("go").onclick=async()=>{$("err").textContent="";try{const j=await api("/api/admin/login",{method:"POST",body:JSON.stringify({user:$("u").value,password:$("pw").value})});tk=j.token;sessionStorage.setItem("at",tk);$("pw").value="";start()}catch(e){$("err").textContent=e.message}};
+$("so").onclick=out;$("rf").onclick=load;
+function start(){$("login").hidden=true;$("app").hidden=false;load();tm=setInterval(load,30000)}
+async function load(){try{const d=await api("/api/admin/stats");
+ $("eph").hidden=!d.server.ephemeral;
+ const C=[["Visits (24h)",d.visits24h],["Unique visitors (24h)",d.uniq24h],["API calls (24h)",d.events24h],["Users",d.users],["New users (7d)",d.newUsers7d],["Word files (24h)",d.docx24h],["AI rewrites (24h)",d.rewrites24h],["Failed logins (24h)",d.failedLogins24h],["Server errors (24h)",d.errors24h]];
+ $("cards").innerHTML=C.map(c=>`<div class="card" style="margin:0"><div class="n">${c[1]}</div><div class="l">${c[0]}</div></div>`).join("");
+ const mx=Math.max(1,...d.series.map(x=>x.v));
+ $("bars").innerHTML=d.series.map(x=>`<div title="${esc(x.d)}: ${x.v} visits, ${x.n} calls"><i style="height:${Math.round(x.v*100/mx)}%"></i>${esc(x.d.slice(5))}</div>`).join("")||"<span class='l'>No activity yet.</span>";
+ $("top").innerHTML="<tr><th>Request</th><th>Count</th></tr>"+d.top.map(x=>`<tr><td>${esc(x.p)}</td><td>${x.n}</td></tr>`).join("");
+ $("users").innerHTML="<tr><th>ID</th><th>Email</th><th>Joined</th><th>Last active</th><th></th></tr>"+d.usersList.map(u=>`<tr><td>${u.id}</td><td>${esc(u.email)}</td><td>${T(u.created)}</td><td>${T(u.last)}</td><td><button data-del="${u.id}">Delete</button></td></tr>`).join("");
+ $("ev").innerHTML="<tr><th>Time</th><th>Method</th><th>Path</th><th>Status</th><th>User</th><th>Visitor</th><th>ms</th></tr>"+d.recent.map(e=>`<tr><td>${T(e.ts)}</td><td>${esc(e.m)}</td><td>${esc(e.p)}</td><td class="${e.st>=400?"bad":""}">${e.st}</td><td>${e.uid||""}</td><td>${esc(e.ip)}</td><td>${e.ms}</td></tr>`).join("");
+ $("srv").textContent="Server: up "+d.server.uptimeMin+" min, "+d.server.memMB+" MB memory, Node "+d.server.node;$("upd").textContent="Updated "+new Date().toLocaleTimeString()}catch(e){if(tk)$("upd").textContent=e.message}}
+$("users").onclick=async e=>{const id=e.target.dataset.del;if(id&&confirm("Delete user "+id+" and all their saved data? This cannot be undone.")){try{await api("/api/admin/users/"+id,{method:"DELETE"});load()}catch(x){alert(x.message)}}};
+if(tk)start();
+</script></body></html>
